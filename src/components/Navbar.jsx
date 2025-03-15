@@ -10,7 +10,8 @@ const Navbar = () => {
         <button className="px-4 py-2 rounded-full bg-gray-800"><Link to='/'>Home</Link></button>
         <button className="px-4 py-2"><Link to='/token'>$CWM Token</Link></button>
       </div>
-
+      
+      <div></div>
     </nav>
   )
 }

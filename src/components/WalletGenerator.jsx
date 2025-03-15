@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 
@@ -8,70 +8,87 @@ const WalletGenerator = () => {
   const [wallets, setWallets] = useState([]);
   const [numWallets, setNumWallets] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [showLongProcessMessage, setShowLongProcessMessage] = useState(false);
+  const [hoverCancel, setHoverCancel] = useState(false);
   const [estimatedTime, setEstimatedTime] = useState(0);
-  const MAX_CONCURRENT_TASKS = navigator.hardwareConcurrency || 4; // Get CPU core count
+  const controllerRef = useRef(new AbortController());
+  const MAX_CONCURRENT_TASKS = navigator.hardwareConcurrency || 4;
 
-  // Estimate time dynamically
   useEffect(() => {
-    if (!prefix && !suffix) {
-      setEstimatedTime(0);
+    if (!loading) {
+      setShowLongProcessMessage(false);
       return;
     }
 
+    const timeout = setTimeout(() => {
+      setShowLongProcessMessage(true);
+    }, 10000); // Show message after 10 seconds
+
+    return () => clearTimeout(timeout);
+  }, [loading]);
+
+  useEffect(() => {
+    if(!prefix && !suffix) {
+      setEstimatedTime(0);
+      return;
+    }
     const attempts = Math.pow(58, prefix.length + suffix.length);
-    const timePerAttempt = 0.1; // Optimized estimate with parallelism
-    setEstimatedTime(((attempts * timePerAttempt * numWallets) / MAX_CONCURRENT_TASKS).toFixed(2));
+    const timePerAttempt = 0.08;
+    setEstimatedTime(((attempts * timePerAttempt * numWallets)).toFixed(2));
   }, [prefix, suffix, numWallets]);
 
-  // Generate a single wallet with prefix/suffix match
-  const generateSingleWallet = async () => {
+  const generateSingleWallet = async (signal) => {
     let attempts = 0;
-    while (true) {
+    while (!signal.aborted) {
       attempts++;
 
-      // Generate Solana keypair (Ed25519)
       const keyPair = nacl.sign.keyPair();
       const publicKeyB58 = bs58.encode(keyPair.publicKey);
       const fullPrivateKeyB58 = bs58.encode(keyPair.secretKey);
 
-      // Check if it matches the prefix & suffix
-      if (
-        publicKeyB58.startsWith(prefix) &&
-        publicKeyB58.endsWith(suffix)
-      ) {
+      if (publicKeyB58.startsWith(prefix) && publicKeyB58.endsWith(suffix)) {
         return { publicKeyB58, fullPrivateKeyB58, attempts };
       }
 
-      // Yield every 10K attempts to avoid UI freeze
       if (attempts % 100 === 0) {
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     }
+    throw new Error("Generation canceled");
   };
 
-  // Run wallet generation in parallel
   const generateWallets = async () => {
-
-    // Set loading state to true immediately
     setLoading(true);
     setWallets([]);
+    controllerRef.current = new AbortController();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const batchSize = Math.min(numWallets, MAX_CONCURRENT_TASKS); // Concurrency limit
+
+    const batchSize = Math.min(numWallets, MAX_CONCURRENT_TASKS);
     let results = [];
 
-    while (results.length < numWallets) {
-      const remaining = numWallets - results.length;
-      const batchCount = Math.min(batchSize, remaining);
+    try {
+      while (results.length < numWallets) {
+        const remaining = numWallets - results.length;
+        const batchCount = Math.min(batchSize, remaining);
 
-      // Generate wallets concurrently
-      const batchResults = await Promise.all(
-        Array.from({ length: batchCount }, generateSingleWallet)
-      );
+        const batchResults = await Promise.all(
+          Array.from({ length: batchCount }, () =>
+            generateSingleWallet(controllerRef.current.signal)
+          )
+        );
 
-      results = [...results, ...batchResults];
-      setWallets(results); // Update UI in real-time
+        results = [...results, ...batchResults];
+        setWallets(results);
+      }
+    } catch (error) {
+      console.log(error.message);
     }
 
+    setLoading(false);
+  };
+
+  const cancelGeneration = () => {
+    controllerRef.current.abort();
     setLoading(false);
   };
 
@@ -83,7 +100,6 @@ const WalletGenerator = () => {
         </h1>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Prefix Input */}
           <div>
             <label className="block text-sm mb-2 font-semibold text-gray-300">
               Prefix (Case-Sensitive)
@@ -97,7 +113,6 @@ const WalletGenerator = () => {
             />
           </div>
 
-          {/* Suffix Input */}
           <div>
             <label className="block text-sm mb-2 font-semibold text-gray-300">
               Suffix (Case-Sensitive)
@@ -111,7 +126,6 @@ const WalletGenerator = () => {
             />
           </div>
 
-          {/* Number of Wallets Dropdown */}
           <div>
             <label className="block text-sm mb-2 font-semibold text-gray-300">
               Number of Wallets
@@ -137,44 +151,24 @@ const WalletGenerator = () => {
           </p>
         )}
 
-        {/* Generate Button */}
         <div className="flex justify-center">
           <button
-            className="px-8 py-3 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white font-semibold transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            onClick={generateWallets}
-            disabled={loading}
+            className="px-8 py-3 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white font-semibold transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed relative"
+            onClick={loading ? cancelGeneration : generateWallets}
+            onMouseEnter={() => setHoverCancel(true)}
+            onMouseLeave={() => setHoverCancel(false)}
           >
-            {loading ? (
-              <div className="flex items-center">
-                <svg
-                  className="animate-spin h-5 w-5 mr-3 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Generating...
-              </div>
-            ) : (
-              "Generate Wallets"
-            )}
+            {loading ? (hoverCancel ? "Cancel" : "Generating...") : "Generate Wallets"}
           </button>
         </div>
 
-        {/* Display Wallets */}
+        {showLongProcessMessage && (
+          <p className="text-sm mt-4 text-center text-yellow-400">
+            We are still working on generating your wallet. Complex words may take time.
+            Do not refresh your browser.
+          </p>
+        )}
+
         {wallets.length > 0 && (
           <div className="mt-8 bg-gray-700/50 rounded-xl p-4">
             <h2 className="text-xl font-semibold mb-4 text-gray-200">
@@ -182,10 +176,7 @@ const WalletGenerator = () => {
             </h2>
             <div className="space-y-4">
               {wallets.map((wallet, index) => (
-                <div
-                  key={index}
-                  className="p-4 bg-gray-600/20 rounded-lg border border-gray-500/30"
-                >
+                <div key={index} className="p-4 bg-gray-600/20 rounded-lg border border-gray-500/30">
                   <p className="text-gray-200">
                     <strong>Public Key:</strong> {wallet.publicKeyB58}
                   </p>
