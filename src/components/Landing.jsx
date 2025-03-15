@@ -6,8 +6,8 @@ const Landing = () => {
   // Sample words for random wallet names
   const getRandomString = () => {
     length = Math.random();
-    if(Math.random() > 0.5) {
-      length = 2; 
+    if (Math.random() > 0.5) {
+      length = 2;
     } else {
       length = 3;
     }
@@ -31,43 +31,43 @@ const Landing = () => {
       });
     }
     setNotifications(initialNotifications);
-  
+
     // Set up interval to add new notifications every 5 seconds
     const interval = setInterval(() => {
       setNotifications((prev) => {
         let updated = prev.map((notif) =>
           notif.status === 'entering' ? { ...notif, status: 'visible' } : notif
         );
-  
+
         // If there are already 4 notifications, make the oldest one exit
         if (updated.length > 4) {
           updated = updated.map((notif, idx) =>
             idx === 0 ? { ...notif, status: 'exiting' } : notif
           );
         }
-  
+
         // Add new notification
         updated.push({
           id: Date.now(),
           word: getRandomString(),
           status: 'entering',
         });
-  
+
         // Remove the notification that has exited
         updated = updated.filter((notif) => notif.status !== 'exited');
-  
+
         // Remove the oldest notification after it finishes exiting
         updated = updated.filter((notif) => notif.status !== 'exiting' || notif.id !== prev[0]?.id);
-  
+
         return updated;
       });
     }, 1500); // 1.5 seconds interval
-  
+
     return () => {
       clearInterval(interval);
     };
   }, []);
-  
+
 
   return (
     <div className="flex flex-col md:flex-row px-8 mt-24">
@@ -84,6 +84,11 @@ const Landing = () => {
         <p className="text-lg text-gray-400 max-w-xl">
           Safely and securely generate a free Solana address with any keyword you chose!
         </p>
+        <button className="mt-8 bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg cursor-pointer border-2 border-gradient-to-r border-blue-500">
+          <a className="text-decoration-none" href="#generator">Generate Now</a>
+        </button>
+
+
       </div>
 
       {/* Right Animation - iPhone style notifications */}
@@ -92,13 +97,12 @@ const Landing = () => {
           {notifications.map((notification) => (
             <div
               key={notification.id}
-              className={`bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-lg transform transition-all duration-600 ease-in-out ${
-                notification.status === 'entering'
-                  ? 'translate-x-full opacity-0'
-                  : notification.status === 'exiting'
+              className={`bg-gray-800 border border-gray-700 rounded-xl p-4 shadow-lg transform transition-all duration-600 ease-in-out ${notification.status === 'entering'
+                ? 'translate-x-full opacity-0'
+                : notification.status === 'exiting'
                   ? '-translate-y-4 opacity-0'
                   : 'translate-x-0 opacity-100'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">

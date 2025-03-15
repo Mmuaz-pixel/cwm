@@ -93,7 +93,7 @@ const WalletGenerator = () => {
   };
 
   return (
-    <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6 text-white">
+    <div id="generator" className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6 text-white">
       <div className="bg-gray-800/80 backdrop-blur-lg rounded-2xl shadow-2xl p-8 w-full max-w-4xl">
         <h1 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-purple-400 to-blue-500 bg-clip-text text-transparent">
           Solana Wallet Generator
