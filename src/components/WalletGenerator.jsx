@@ -51,7 +51,6 @@ const WalletGenerator = () => {
 
   // Run wallet generation in parallel
   const generateWallets = async () => {
-    if (!prefix && !suffix) return;
 
     // Set loading state to true immediately
     setLoading(true);
